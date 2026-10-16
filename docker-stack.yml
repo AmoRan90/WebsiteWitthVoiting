@@ -1,0 +1,46 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: voting
+      POSTGRES_PASSWORD: voting
+      POSTGRES_DB: voting
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [backend]
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.role == db
+      restart_policy:
+        condition: on-failure
+
+  web:
+    image: amoran90/voting-app:latest
+    environment:
+      DATABASE_URL: postgresql+asyncpg://voting:voting@db:5432/voting
+      SECRET_KEY: prod-secret-change-me
+    networks: [backend]
+    ports:
+      - "80:8000"
+    deploy:
+      replicas: 3
+      placement:
+        constraints:
+          - node.labels.role == web
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+
+volumes:
+  pgdata:
+
+networks:
+  backend:
+    driver: overlay

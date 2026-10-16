@@ -1,0 +1,34 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: voting
+      POSTGRES_PASSWORD: voting
+      POSTGRES_DB: voting
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voting"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+asyncpg://voting:voting@db:5432/voting
+      SECRET_KEY: dev-secret
+    ports:
+      - "80:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [backend]
+
+volumes:
+  pgdata:
+
+  backend:
