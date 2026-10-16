@@ -8,12 +8,4 @@
 - Docker, Docker Swarm
 - Jinja2 (SSR)
 
-## Запуск локально
 
-    docker compose up -d --build
-
-Открыть http://localhost
-
-## Развёртывание в Swarm
-
-    docker stack deploy -c docker-stack.yml voting
