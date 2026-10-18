@@ -1,0 +1,20 @@
+<h1>Вход</h1>
+$error_block
+<form method="post" action="/login" class="card">
+  <input type="hidden" name="next_url" value="$next_url">
+  <label>Имя пользователя <input name="username" required autofocus></label>
+  <label>Пароль
+    <div style="position: relative; display: flex; align-items: center;">
+      <input name="password" id="pass-login" type="password" required style="width: 100%; padding-right: 40px;">
+      <span onclick="togglePassword('pass-login')" style="position: absolute; right: 10px; cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #9ca3af;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></span>
+    </div>
+  </label>
+  <button type="submit">Войти</button>
+</form>
+<p>Нет аккаунта? <a href="/register">Зарегистрироваться</a></p>
+<script>
+  function togglePassword(id) {
+    var input = document.getElementById(id);
+    input.type = input.type === "password" ? "text" : "password";
+  }
+</script>

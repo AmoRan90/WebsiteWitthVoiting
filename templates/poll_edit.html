@@ -1,0 +1,187 @@
+<h1>Редактировать: <span id="poll-title-display"></span></h1>
+$error_block
+
+<form method="post" action="/polls/$poll_id/edit" class="card" id="poll-form" onsubmit="prepareData(event)">
+  <input type="hidden" name="questions_json" id="questions_json">
+  
+  <label>Название <input name="title" id="poll-title-input" required maxlength="200" autofocus></label>
+  <label>Описание (необязательно) <textarea name="description" id="poll-desc-input" rows="2"></textarea></label>
+  
+  <div style="display: flex; flex-direction: column; gap: 10px; margin: 15px 0;">
+    <label style="flex-direction: row; align-items: center; gap: 8px; cursor: pointer; font-weight: bold;">
+      <input type="checkbox" name="is_test" id="is_test" onchange="toggleTestMode()"> Режим тестирования
+    </label>
+    
+    <label style="flex-direction: row; align-items: center; gap: 8px; cursor: pointer;">
+      <input type="checkbox" name="allow_retake" id="allow_retake_cb"> Разрешить проходить заново
+    </label>
+
+    <label style="flex-direction: row; align-items: center; gap: 8px; cursor: pointer;">
+      <input type="checkbox" id="use_timer" onchange="toggleTimer()"> Ограничить время прохождения
+    </label>
+
+    <div id="timer-input-block" style="display: none; margin-left: 24px;">
+      <label>Время в минутах (от 1 до 60) 
+        <input type="number" name="time_limit" id="time_limit_input" min="1" max="60" placeholder="Например: 15" style="width: 150px;">
+      </label>
+    </div>
+  </div>
+
+  <div id="questions-container"></div>
+
+  <button type="button" onclick="addQuestion()">+ Добавить вопрос</button>
+  <hr style="width: 100%; border: 0; border-top: 1px solid #e5e7eb; margin: 10px 0;">
+  <button type="submit">Сохранить изменения</button>
+</form>
+
+<p><a href="/polls/$poll_id">← К опросу</a> | <a href="/">К списку</a></p>
+
+<script>
+  // Данные, которые передал Python (через безопасные JSON-строки)
+  var initialQuestions = $questions_json;
+  var initialTitle = "$title";
+  var initialDesc = "$description";
+  var initialIsTest = "$is_test_checked" === "checked";
+  var initialAllowRetake = "$allow_retake_checked" === "checked";
+  var initialUseTimer = "$use_timer_checked" === "checked";
+  var initialTimeLimit = "$time_limit";
+
+  // Заполняем поля при загрузке
+  window.onload = function() {
+    document.getElementById('poll-title-display').innerText = initialTitle;
+    document.getElementById('poll-title-input').value = initialTitle;
+    document.getElementById('poll-desc-input').value = initialDesc;
+    document.getElementById('is_test').checked = initialIsTest;
+    document.getElementById('allow_retake_cb').checked = initialAllowRetake;
+    document.getElementById('use_timer').checked = initialUseTimer;
+    
+    if (initialUseTimer) {
+        document.getElementById('timer-input-block').style.display = 'block';
+        document.getElementById('time_limit_input').value = initialTimeLimit;
+    }
+    
+    if (initialQuestions && initialQuestions.length > 0) {
+      initialQuestions.forEach(function(q) {
+        addQuestion(q.text, q.options, q.correct);
+      });
+    } else {
+      addQuestion();
+    }
+  };
+
+  function toggleTimer() {
+    var useTimer = document.getElementById('use_timer').checked;
+    var block = document.getElementById('timer-input-block');
+    if (useTimer) {
+      block.style.display = 'block';
+    } else {
+      block.style.display = 'none';
+      document.getElementById('time_limit_input').value = '';
+    }
+  }
+
+  function toggleTestMode() {
+    var blocks = document.querySelectorAll('.question-block');
+    blocks.forEach(function(block) { updateQuestionBlock(block); });
+  }
+
+  function updateQuestionBlock(block) {
+    var isTest = document.getElementById('is_test').checked;
+    var optContainer = block.querySelector('.options-list');
+    var options = optContainer.querySelectorAll('.option-row');
+    
+    options.forEach(function(row) {
+      var markerDiv = row.querySelector('.correct-marker');
+      var isCorrect = row.dataset.isCorrect === "true";
+      
+      if (isTest) {
+        var checked = isCorrect ? 'checked' : '';
+        markerDiv.innerHTML = '<input type="radio" name="correct_' + block.dataset.id + '" ' + checked + ' required title="Отметить как правильный">';
+      } else {
+        markerDiv.innerHTML = '';
+      }
+    });
+  }
+
+  function addQuestion(qText, qOptions, qCorrect) {
+    questionCount++;
+    var container = document.getElementById('questions-container');
+    var div = document.createElement('div');
+    div.className = 'question-block';
+    div.dataset.id = questionCount;
+    div.style = 'border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; border-radius: 6px;';
+    
+    var textVal = qText ? qText : '';
+    var html = '<label>Вопрос ' + questionCount + ' <input class="q-text" value="' + textVal + '" required></label>';
+    html += '<div class="options-list" style="margin-top: 10px;"></div>';
+    html += '<button type="button" class="add-opt" onclick="addOption(this)">+ Вариант</button>';
+    
+    div.innerHTML = html;
+    container.appendChild(div);
+
+    if (qOptions && qOptions.length > 0) {
+      qOptions.forEach(function(opt, idx) {
+        var isCor = (idx === qCorrect);
+        addOption(div.querySelector('.add-opt'), opt, isCor);
+      });
+    } else {
+      addOption(div.querySelector('.add-opt')); 
+    }
+  }
+
+  function addOption(btn, optText, isCorrect) {
+    var block = btn.closest('.question-block');
+    var list = block.querySelector('.options-list');
+    if (list.children.length >= 5) { alert('Максимум 5 вариантов!'); return; }
+    
+    var row = document.createElement('div');
+    row.className = 'option-row';
+    row.style = 'display:flex; align-items:center; gap:10px; margin-top: 5px;';
+    if (isCorrect) row.dataset.isCorrect = "true";
+    
+    var markerDiv = document.createElement('div');
+    markerDiv.className = 'correct-marker';
+    
+    var input = document.createElement('input');
+    input.className = 'opt-text';
+    input.required = true;
+    input.placeholder = 'Текст варианта';
+    if (optText) input.value = optText;
+    
+    row.appendChild(markerDiv);
+    row.appendChild(input);
+    list.appendChild(row);
+    
+    updateQuestionBlock(block);
+  }
+
+  function prepareData(e) {
+    var blocks = document.querySelectorAll('.question-block');
+    if (blocks.length === 0) { alert('Добавьте вопрос!'); e.preventDefault(); return; }
+    var isTest = document.getElementById('is_test').checked;
+    
+    var data = [];
+    var valid = true;
+    blocks.forEach(function(block) {
+      var text = block.querySelector('.q-text').value;
+      var opts = [];
+      var correctIdx = -1;
+      var optRows = block.querySelectorAll('.option-row');
+      
+      optRows.forEach(function(row, index) {
+        var val = row.querySelector('.opt-text').value;
+        opts.push(val);
+        if (isTest) {
+          var radio = row.querySelector('input[type="radio"]');
+          if (radio && radio.checked) correctIdx = index;
+        }
+      });
+      
+      if (isTest && correctIdx === -1) valid = false;
+      data.push({ text: text, options: opts, correct: correctIdx });
+    });
+    
+    if (isTest && !valid) { alert('Отметьте правильный ответ для каждого вопроса!'); e.preventDefault(); return; }
+    document.getElementById('questions_json').value = JSON.stringify(data);
+  }
+</script>

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>$title</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; background: #f5f7fb; color: #1f2937; line-height: 1.5; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; background: #1e3a8a; color: #fff; }
+    .topbar a { color: #fff; text-decoration: none; margin-left: 16px; }
+    .topbar .logo { font-weight: bold; font-size: 1.1rem; }
+    .container { max-width: 720px; margin: 24px auto; padding: 0 16px; }
+    h1 { margin-top: 0; }
+    .card { background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.06); display: flex; flex-direction: column; gap: 12px; }
+    label { display: flex; flex-direction: column; gap: 4px; font-size: .95rem; }
+    input, textarea, button { font: inherit; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; }
+    input:focus, textarea:focus { outline: 2px solid #93c5fd; border-color: #93c5fd; }
+    button { background: #2563eb; color: #fff; border: none; cursor: pointer; padding: 10px 16px; border-radius: 6px; }
+    button:hover { background: #1d4ed8; }
+    .error { background: #fee2e2; color: #991b1b; padding: 10px 14px; border-radius: 6px; margin-bottom: 16px; }
+    .notice { background: #dbeafe; color: #1e40af; padding: 10px 14px; border-radius: 6px; margin: 12px 0; }
+    .poll-list { list-style: none; padding: 0; }
+    .poll-list li { background: #fff; padding: 12px 16px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+    .poll-list a { color: #1e3a8a; text-decoration: none; }
+    .poll-list .date { color: #9ca3af; font-size: .85rem; }
+    .desc { color: #4b5563; } .meta { color: #6b7280; font-size: .9rem; }
+    .radio { flex-direction: row; align-items: center; gap: 8px; padding: 6px 0; }
+    .results { list-style: none; padding: 0; } .results li { margin-bottom: 14px; }
+    .results .row { display: flex; justify-content: space-between; margin-bottom: 4px; } .results .num { color: #6b7280; }
+    .bar-bg { background: #e5e7eb; border-radius: 6px; height: 12px; overflow: hidden; }
+    .bar { background: #2563eb; height: 100%; transition: width .3s ease; }
+    .footer { text-align: center; padding: 24px; color: #9ca3af; font-size: .85rem; }
+    a { color: #2563eb; }
+    .poll-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .poll-list li > a {
+    text-decoration: none;
+    font-size: 1.05rem;
+  }
+  .poll-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.poll-list li > a {
+    text-decoration: none;
+    font-size: 1.05rem;
+}
+  </style>
+</head>
+<body>
+  <header class="topbar"><a href="/" class="logo">🗳 Voting App</a><nav>$nav</nav></header>
+  <main class="container">$content</main>
+  <footer class="footer"><small>Voting App</small></footer>
+</body>
+</html>

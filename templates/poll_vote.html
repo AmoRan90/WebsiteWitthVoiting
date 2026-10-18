@@ -1,0 +1,33 @@
+<h1>$title</h1>
+$description_block
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+  <p class="meta" style="margin: 0;">Автор: $author · $date</p>
+  <div style="display: flex; align-items: center; gap: 15px;">
+    
+    <!-- Кнопка "Поделиться" -->
+    <button onclick="copyLink()" style="background: none; border: none; color: #6b7280; font-size: 0.85rem; cursor: pointer; padding: 0; display: flex; align-items: center; font-family: inherit;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -2px;">
+        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+      </svg>
+      Поделиться
+    </button>
+
+    $edit_link
+    $delete_button
+  </div>
+</div>
+
+$body
+<p><a href="/polls/$poll_id/results">Результаты</a> · <a href="/">← К списку</a></p>
+
+<script>
+  function copyLink() {
+    navigator.clipboard.writeText(window.location.href).then(function() {
+      alert('Ссылка на опрос скопирована в буфер обмена!');
+    }).catch(function(err) {
+      alert('Не удалось скопировать: ' + err);
+    });
+  }
+</script>
