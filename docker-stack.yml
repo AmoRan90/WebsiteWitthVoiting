@@ -12,14 +12,12 @@ services:
     networks: [backend]
     deploy:
       replicas: 1
-      placement:
-        constraints:
-          - node.labels.role == db
+      # Убрали constraints
       restart_policy:
         condition: on-failure
 
   web:
-    image: amoran90/voting-app:latest
+    image: amiran9009/voting-app:latest
     environment:
       DATABASE_URL: postgresql+asyncpg://voting:voting@db:5432/voting
       SECRET_KEY: prod-secret-change-me
@@ -28,9 +26,7 @@ services:
       - "80:8000"
     deploy:
       replicas: 3
-      placement:
-        constraints:
-          - node.labels.role == web
+      # Убрали constraints
       update_config:
         parallelism: 1
         delay: 10s
