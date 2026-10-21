@@ -313,8 +313,15 @@ async def vote(poll_id: int, request: Request, session: str | None = Cookie(defa
     return RedirectResponse(f"/polls/{poll_id}/results", status_code=303)
 
 @app.get("/polls/{poll_id}/results", response_class=HTMLResponse)
-async def results(poll_id: int, session: str | None = Cookie(default=None), db: AsyncSession = Depends(get_db)):
+async def results(
+    poll_id: int, 
+    request: Request,  # <--- Добавлен Request для чтения параметров
+    session: str | None = Cookie(default=None), 
+    db: AsyncSession = Depends(get_db)
+):
     user = await load_user(db, session)
+    yandex_link = request.query_params.get("yandex_link") # <--- Читаем ссылку из URL
+
     poll_res = await db.execute(select(Poll).options(selectinload(Poll.questions).selectinload(Question.options)).where(Poll.id == poll_id))
     poll = poll_res.scalar_one_or_none()
     if not poll: raise HTTPException(404)
@@ -357,8 +364,19 @@ async def results(poll_id: int, session: str | None = Cookie(default=None), db: 
     if poll.allow_retake:
         content_html += f'<p><a href="/polls/{poll.id}" style="font-weight: bold; color: #2563eb;">Пройти заново</a></p>'
 
-    # Кнопка экспорта на Яндекс.Диск
-    content_html += f'<p style="margin-top: 20px;"><a href="/polls/{poll.id}/export_yandex" style="background: #ffcc00; color: black; padding: 10px 15px; text-decoration: none; border-radius: 5px; font-weight: bold;">☁️ Сохранить на Яндекс.Диск</a></p>'
+    # Кнопка экспорта на Яндекс.Диск (спокойный цвет, без эмодзи)
+    content_html += f'<p style="margin-top: 20px;"><a href="/polls/{poll.id}/export_yandex" style="background: #1e3a8a; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Сохранить на Яндекс.Диск</a></p>'
+
+    # Вывод ссылки на скачивание, если она есть
+    if yandex_link:
+        content_html += f'''
+        <div style="background: #dcfce7; color: #166534; padding: 15px; border-radius: 8px; margin-top: 20px; text-align: center; border: 1px solid #bbf7d0;">
+            <b>Файл успешно сохранен на Яндекс.Диск!</b><br>
+            <a href="{yandex_link}" target="_blank" style="color: #15803d; font-weight: bold; text-decoration: underline; display: inline-block; margin-top: 5px;">
+                Скачать результаты (CSV)
+            </a>
+        </div>
+        '''
     
     content_html += f'<p><a href="/">← К списку</a></p>'
     return page(title=f"Результаты — {poll.title}", content=content_html, user=user)
@@ -403,7 +421,6 @@ async def export_yandex(poll_id: int, db: AsyncSession = Depends(get_db)):
             f = io.BytesIO(file_content.encode('utf-8'))
             client.upload(f, remote_path, overwrite=True)
             
-            # ИСПРАВЛЕНИЕ: Используем publish и достаем public_url
             public_info = client.publish(remote_path)
             link = getattr(public_info, 'public_url', None)
             
