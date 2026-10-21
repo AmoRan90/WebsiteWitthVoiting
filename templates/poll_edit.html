@@ -1,28 +1,28 @@
-<h1>Редактировать: <span id="poll-title-display"></span></h1>
+<h1>Редактировать: $title</h1>
 $error_block
 
 <form method="post" action="/polls/$poll_id/edit" class="card" id="poll-form" onsubmit="prepareData(event)">
   <input type="hidden" name="questions_json" id="questions_json">
   
-  <label>Название <input name="title" id="poll-title-input" required maxlength="200" autofocus></label>
-  <label>Описание (необязательно) <textarea name="description" id="poll-desc-input" rows="2"></textarea></label>
+  <label>Название <input name="title" value="$title" required maxlength="200" autofocus></label>
+  <label>Описание (необязательно) <textarea name="description" rows="2">$description</textarea></label>
   
   <div style="display: flex; flex-direction: column; gap: 10px; margin: 15px 0;">
     <label style="flex-direction: row; align-items: center; gap: 8px; cursor: pointer; font-weight: bold;">
-      <input type="checkbox" name="is_test" id="is_test" onchange="toggleTestMode()"> Режим тестирования
+      <input type="checkbox" name="is_test" id="is_test" onchange="toggleTestMode()" $is_test_checked> Режим тестирования
     </label>
     
     <label style="flex-direction: row; align-items: center; gap: 8px; cursor: pointer;">
-      <input type="checkbox" name="allow_retake" id="allow_retake_cb"> Разрешить проходить заново
+      <input type="checkbox" name="allow_retake" $allow_retake_checked> Разрешить проходить заново
     </label>
 
     <label style="flex-direction: row; align-items: center; gap: 8px; cursor: pointer;">
-      <input type="checkbox" id="use_timer" onchange="toggleTimer()"> Ограничить время прохождения
+      <input type="checkbox" id="use_timer" onchange="toggleTimer()" $use_timer_checked> Ограничить время прохождения
     </label>
 
-    <div id="timer-input-block" style="display: none; margin-left: 24px;">
+    <div id="timer-input-block" style="$timer_block_style; margin-left: 24px;">
       <label>Время в минутах (от 1 до 60) 
-        <input type="number" name="time_limit" id="time_limit_input" min="1" max="60" placeholder="Например: 15" style="width: 150px;">
+        <input type="number" name="time_limit" value="$time_limit" min="1" max="60" placeholder="Например: 15" style="width: 150px;">
       </label>
     </div>
   </div>
@@ -37,47 +37,15 @@ $error_block
 <p><a href="/polls/$poll_id">← К опросу</a> | <a href="/">К списку</a></p>
 
 <script>
-  // Данные, которые передал Python (через безопасные JSON-строки)
+  var questionCount = 0;
+  // Считываем JSON, переданный из Python
   var initialQuestions = $questions_json;
-  var initialTitle = "$title";
-  var initialDesc = "$description";
-  var initialIsTest = "$is_test_checked" === "checked";
-  var initialAllowRetake = "$allow_retake_checked" === "checked";
-  var initialUseTimer = "$use_timer_checked" === "checked";
-  var initialTimeLimit = "$time_limit";
-
-  // Заполняем поля при загрузке
-  window.onload = function() {
-    document.getElementById('poll-title-display').innerText = initialTitle;
-    document.getElementById('poll-title-input').value = initialTitle;
-    document.getElementById('poll-desc-input').value = initialDesc;
-    document.getElementById('is_test').checked = initialIsTest;
-    document.getElementById('allow_retake_cb').checked = initialAllowRetake;
-    document.getElementById('use_timer').checked = initialUseTimer;
-    
-    if (initialUseTimer) {
-        document.getElementById('timer-input-block').style.display = 'block';
-        document.getElementById('time_limit_input').value = initialTimeLimit;
-    }
-    
-    if (initialQuestions && initialQuestions.length > 0) {
-      initialQuestions.forEach(function(q) {
-        addQuestion(q.text, q.options, q.correct);
-      });
-    } else {
-      addQuestion();
-    }
-  };
 
   function toggleTimer() {
     var useTimer = document.getElementById('use_timer').checked;
     var block = document.getElementById('timer-input-block');
-    if (useTimer) {
-      block.style.display = 'block';
-    } else {
-      block.style.display = 'none';
-      document.getElementById('time_limit_input').value = '';
-    }
+    block.style.display = useTimer ? 'block' : 'none';
+    if (!useTimer) block.querySelector('input[name="time_limit"]').value = '';
   }
 
   function toggleTestMode() {
@@ -103,7 +71,8 @@ $error_block
     });
   }
 
-  function addQuestion(qText, qOptions, qCorrect) {
+  // Функция добавления вопроса (используется и для новых, и для существующих)
+  function addQuestion(qText, qType, qOptions, qCorrect) {
     questionCount++;
     var container = document.getElementById('questions-container');
     var div = document.createElement('div');
@@ -113,12 +82,22 @@ $error_block
     
     var textVal = qText ? qText : '';
     var html = '<label>Вопрос ' + questionCount + ' <input class="q-text" value="' + textVal + '" required></label>';
+    
+    // Выбор типа ответа
+    var typeSingle = (qType === 'single' || !qType) ? 'selected' : '';
+    var typeMultiple = (qType === 'multiple') ? 'selected' : '';
+    html += '<label>Тип ответа <select class="q-type" style="margin-top: 5px; padding: 5px; width: 100%;">';
+    html += '<option value="single" ' + typeSingle + '>Выбор одного варианта</option>';
+    html += '<option value="multiple" ' + typeMultiple + '>Выбор нескольких вариантов</option>';
+    html += '</select></label>';
+
     html += '<div class="options-list" style="margin-top: 10px;"></div>';
     html += '<button type="button" class="add-opt" onclick="addOption(this)">+ Вариант</button>';
     
     div.innerHTML = html;
     container.appendChild(div);
 
+    // Если переданы варианты — добавляем их
     if (qOptions && qOptions.length > 0) {
       qOptions.forEach(function(opt, idx) {
         var isCor = (idx === qCorrect);
@@ -164,6 +143,7 @@ $error_block
     var valid = true;
     blocks.forEach(function(block) {
       var text = block.querySelector('.q-text').value;
+      var type = block.querySelector('.q-type').value;
       var opts = [];
       var correctIdx = -1;
       var optRows = block.querySelectorAll('.option-row');
@@ -178,10 +158,23 @@ $error_block
       });
       
       if (isTest && correctIdx === -1) valid = false;
-      data.push({ text: text, options: opts, correct: correctIdx });
+      data.push({ text: text, type: type, options: opts, correct: correctIdx });
     });
     
     if (isTest && !valid) { alert('Отметьте правильный ответ для каждого вопроса!'); e.preventDefault(); return; }
     document.getElementById('questions_json').value = JSON.stringify(data);
   }
+
+  // Инициализация при загрузке страницы
+  window.onload = function() {
+    if (initialQuestions && initialQuestions.length > 0) {
+      // Если вопросы есть, отрисовываем их
+      initialQuestions.forEach(function(q) {
+        addQuestion(q.text, q.type, q.options, q.correct);
+      });
+    } else {
+      // Если вопросов нет, создаем один пустой
+      addQuestion();
+    }
+  };
 </script>
