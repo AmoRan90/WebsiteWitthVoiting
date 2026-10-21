@@ -20,7 +20,6 @@ $error_block
       <input type="checkbox" id="use_timer" onchange="toggleTimer()"> Ограничить время прохождения
     </label>
 
-    <!-- Поле для ввода времени (скрыто по умолчанию) -->
     <div id="timer-input-block" style="display: none; margin-left: 24px;">
       <label>Время в минутах (от 1 до 60) 
         <input type="number" name="time_limit" min="1" max="60" placeholder="Например: 15" style="width: 150px;">
@@ -79,7 +78,14 @@ $error_block
     div.dataset.id = questionCount;
     div.style = 'border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; border-radius: 6px;';
     
+    // --- ДОБАВЛЕН ВЫБОР ТИПА ОТВЕТА ---
     var html = '<label>Вопрос ' + questionCount + ' <input class="q-text" required></label>';
+    html += '<label>Тип ответа <select class="q-type" style="margin-top: 5px; padding: 5px; width: 100%;">';
+    html += '<option value="single">Выбор одного варианта</option>';
+    html += '<option value="multiple">Выбор нескольких вариантов</option>';
+    html += '</select></label>';
+    // ---------------------------------
+    
     html += '<div class="options-list" style="margin-top: 10px;"></div>';
     html += '<button type="button" class="add-opt" onclick="addOption(this)">+ Вариант</button>';
     
@@ -121,6 +127,7 @@ $error_block
     var valid = true;
     blocks.forEach(function(block) {
       var text = block.querySelector('.q-text').value;
+      var type = block.querySelector('.q-type').value; // <--- БЕРЕМ ТИП
       var opts = [];
       var correctIdx = -1;
       var optRows = block.querySelectorAll('.option-row');
@@ -135,7 +142,7 @@ $error_block
       });
       
       if (isTest && correctIdx === -1) valid = false;
-      data.push({ text: text, options: opts, correct: correctIdx });
+      data.push({ text: text, type: type, options: opts, correct: correctIdx }); // <--- ПЕРЕДАЕМ ТИП
     });
     
     if (isTest && !valid) { alert('Отметьте правильный ответ для каждого вопроса!'); e.preventDefault(); return; }

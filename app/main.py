@@ -59,8 +59,6 @@ def icon_share():
 @app.get("/", response_class=HTMLResponse)
 async def index(session: str | None = Cookie(default=None), db: AsyncSession = Depends(get_db)):
     user = await load_user(db, session)
-    
-    # Если пользователь не авторизован, показываем только приветствие
     if not user:
         content = """
         <div style="text-align: center; padding: 50px 20px;">
@@ -76,7 +74,6 @@ async def index(session: str | None = Cookie(default=None), db: AsyncSession = D
         """
         return page(title="Главная", content=content, user=user)
 
-    # Для авторизованных пользователей показываем список
     res = await db.execute(select(Poll).where(Poll.is_active == True).order_by(Poll.created_at.desc()).limit(50))
     polls = res.scalars().all()
     
@@ -107,7 +104,6 @@ async def index(session: str | None = Cookie(default=None), db: AsyncSession = D
         content = render("index.html", content=f"<h1>Активные опросы</h1><ul class='poll-list'>{items}</ul>")
     else:
         content = render("index.html", content='<h1>Активные опросы</h1><p>Пока нет опросов. <a href="/polls/new">Создайте первый!</a></p>')
-        
     return page(title="Главная", content=content, user=user)
 
 @app.get("/register", response_class=HTMLResponse)
@@ -117,10 +113,7 @@ async def register_form(request: Request, session: str | None = Cookie(default=N
     return page(title="Регистрация", content=render("register.html", error_block="", next_url=next_url), user=user)
 
 @app.post("/register")
-async def register(
-    username: str = Form(...), password: str = Form(...), next_url: str = Form(""),
-    db: AsyncSession = Depends(get_db)
-):
+async def register(username: str = Form(...), password: str = Form(...), next_url: str = Form(""), db: AsyncSession = Depends(get_db)):
     username = username.strip()
     err = ""
     if len(username) < 3 or len(password) < 6: err = "Имя ≥3 символов, пароль ≥6"
@@ -142,10 +135,7 @@ async def login_form(request: Request, session: str | None = Cookie(default=None
     return page(title="Вход", content=render("login.html", error_block="", next_url=next_url), user=user)
 
 @app.post("/login")
-async def login(
-    username: str = Form(...), password: str = Form(...), next_url: str = Form(""),
-    db: AsyncSession = Depends(get_db)
-):
+async def login(username: str = Form(...), password: str = Form(...), next_url: str = Form(""), db: AsyncSession = Depends(get_db)):
     res = await db.execute(select(User).where(User.username == username))
     user = res.scalar_one_or_none()
     if not user or not verify_password(password, user.password_hash):
@@ -190,7 +180,12 @@ async def create_poll(
     
     for q in q_data:
         if not q.get("text", "").strip(): continue
-        question = Question(poll_id=poll.id, text=q["text"].strip(), question_type="single")
+        # ИСПРАВЛЕНИЕ: Берем тип из JSON
+        question = Question(
+            poll_id=poll.id, 
+            text=q["text"].strip(), 
+            question_type=q.get("type", "single") 
+        )
         db.add(question); await db.flush()
         correct_idx = q.get("correct", -1)
         for idx, opt in enumerate(q.get("options", [])):
@@ -214,7 +209,6 @@ async def view_poll(poll_id: int, session: str | None = Cookie(default=None), db
         
     description_block = f'<p class="desc">{poll.description}</p>' if poll.description else ""
     
-    # Кнопка "Поделиться" (доступна всем)
     share_button = f'''
     <button onclick="copyLink()" style="background: none; border: none; color: #6b7280; font-size: 0.85rem; cursor: pointer; padding: 0; display: flex; align-items: center; font-family: inherit;">
         {icon_share()}Поделиться
@@ -266,14 +260,15 @@ async def view_poll(poll_id: int, session: str | None = Cookie(default=None), db
             
         form_html = f'<form method="post" action="/polls/{poll.id}/vote" class="card" id="poll-form">{timer_html}'
         for q in poll.questions:
+            # ИСПРАВЛЕНИЕ: Определяем тип поля (radio или checkbox)
+            input_type = "checkbox" if q.question_type == "multiple" else "radio"
             form_html += f'<div style="margin-bottom: 15px;"><b>{q.text}</b><br>'
             for o in q.options:
-                form_html += f'<label class="radio"><input type="radio" name="q_{q.id}" value="{o.id}" required> {o.text}</label>'
+                form_html += f'<label class="radio"><input type="{input_type}" name="q_{q.id}" value="{o.id}"> {o.text}</label>'
             form_html += '</div>'
         form_html += '<button type="submit">Ответить</button></form>' + timer_script
         body = form_html
     else:
-        # Передаем next в ссылки для входа/регистрации
         body = f'<p>Чтобы пройти, <a href="/login?next=/polls/{poll.id}">войдите</a> или <a href="/register?next=/polls/{poll.id}">зарегистрируйтесь</a>.</p>'
         
     content = render(
@@ -290,9 +285,6 @@ async def view_poll(poll_id: int, session: str | None = Cookie(default=None), db
     )
     return page(title=poll.title, content=content, user=user)
 
-# ... Остальные функции (vote, results, edit, delete) остаются без изменений ...
-# (вставьте их сюда из предыдущего сообщения, они не менялись)
-
 @app.post("/polls/{poll_id}/vote")
 async def vote(poll_id: int, request: Request, session: str | None = Cookie(default=None), db: AsyncSession = Depends(get_db)):
     user = await load_user(db, session)
@@ -303,12 +295,21 @@ async def vote(poll_id: int, request: Request, session: str | None = Cookie(defa
         await db.execute(delete(Vote).where(Vote.user_id == user.id, Vote.question_id.in_(select(Question.id).where(Question.poll_id == poll_id))))
         await db.commit()
     form_data = await request.form()
+    
+    # Обработка голосов (учитываем, что может быть несколько значений для checkbox)
     for key, value in form_data.items():
         if key.startswith("q_"):
             q_id = int(key[2:])
             existing = await db.execute(select(Vote).where(Vote.question_id == q_id, Vote.user_id == user.id))
             if existing.scalar_one_or_none(): continue
-            db.add(Vote(question_id=q_id, option_id=int(value), user_id=user.id))
+            
+            # Если value — это список (checkbox), сохраняем каждый
+            if isinstance(value, list):
+                for opt_id in value:
+                    db.add(Vote(question_id=q_id, option_id=int(opt_id), user_id=user.id))
+            else:
+                db.add(Vote(question_id=q_id, option_id=int(value), user_id=user.id))
+                
     await db.commit()
     return RedirectResponse(f"/polls/{poll_id}/results", status_code=303)
 
@@ -383,7 +384,8 @@ async def edit_poll(poll_id: int, title: str = Form(...), description: str = For
     await db.execute(delete(Question).where(Question.poll_id == poll.id)); await db.flush()
     for q in q_data:
         if not q.get("text", "").strip(): continue
-        question = Question(poll_id=poll.id, text=q["text"].strip(), question_type="single")
+        # ИСПРАВЛЕНИЕ: Берем тип из JSON при редактировании
+        question = Question(poll_id=poll.id, text=q["text"].strip(), question_type=q.get("type", "single"))
         db.add(question); await db.flush()
         correct_idx = q.get("correct", -1)
         for idx, opt in enumerate(q.get("options", [])):
