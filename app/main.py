@@ -1,5 +1,8 @@
 import os
 import json
+import csv
+import io
+import yadisk
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Form, Depends, HTTPException, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -180,7 +183,6 @@ async def create_poll(
     
     for q in q_data:
         if not q.get("text", "").strip(): continue
-        # ИСПРАВЛЕНИЕ: Берем тип из JSON
         question = Question(
             poll_id=poll.id, 
             text=q["text"].strip(), 
@@ -260,7 +262,6 @@ async def view_poll(poll_id: int, session: str | None = Cookie(default=None), db
             
         form_html = f'<form method="post" action="/polls/{poll.id}/vote" class="card" id="poll-form">{timer_html}'
         for q in poll.questions:
-            # ИСПРАВЛЕНИЕ: Определяем тип поля (radio или checkbox)
             input_type = "checkbox" if q.question_type == "multiple" else "radio"
             form_html += f'<div style="margin-bottom: 15px;"><b>{q.text}</b><br>'
             for o in q.options:
@@ -296,14 +297,12 @@ async def vote(poll_id: int, request: Request, session: str | None = Cookie(defa
         await db.commit()
     form_data = await request.form()
     
-    # Обработка голосов (учитываем, что может быть несколько значений для checkbox)
     for key, value in form_data.items():
         if key.startswith("q_"):
             q_id = int(key[2:])
             existing = await db.execute(select(Vote).where(Vote.question_id == q_id, Vote.user_id == user.id))
             if existing.scalar_one_or_none(): continue
             
-            # Если value — это список (checkbox), сохраняем каждый
             if isinstance(value, list):
                 for opt_id in value:
                     db.add(Vote(question_id=q_id, option_id=int(opt_id), user_id=user.id))
@@ -319,8 +318,10 @@ async def results(poll_id: int, session: str | None = Cookie(default=None), db: 
     poll_res = await db.execute(select(Poll).options(selectinload(Poll.questions).selectinload(Question.options)).where(Poll.id == poll_id))
     poll = poll_res.scalar_one_or_none()
     if not poll: raise HTTPException(404)
+    
     content_html = f"<h1>{poll.title}</h1>"
     if poll.description: content_html += f'<p class="desc">{poll.description}</p>'
+    
     if poll.is_test:
         correct_count = 0
         total_q = len(poll.questions)
@@ -352,10 +353,62 @@ async def results(poll_id: int, session: str | None = Cookie(default=None), db: 
                 pct = r["count"] * 100 // total
                 content_html += f'<li><div class="row"><span>{r["text"]}</span><span class="num">{r["count"]} ({pct}%)</span></div><div class="bar-bg"><div class="bar" style="width: {pct}%"></div></div></li>'
             content_html += "</ul>"
+
     if poll.allow_retake:
         content_html += f'<p><a href="/polls/{poll.id}" style="font-weight: bold; color: #2563eb;">Пройти заново</a></p>'
+
+    # Кнопка экспорта на Яндекс.Диск
+    content_html += f'<p style="margin-top: 20px;"><a href="/polls/{poll.id}/export_yandex" style="background: #ffcc00; color: black; padding: 10px 15px; text-decoration: none; border-radius: 5px; font-weight: bold;">☁️ Сохранить на Яндекс.Диск</a></p>'
+    
     content_html += f'<p><a href="/">← К списку</a></p>'
     return page(title=f"Результаты — {poll.title}", content=content_html, user=user)
+
+@app.get("/polls/{poll_id}/export_yandex")
+async def export_yandex(poll_id: int, db: AsyncSession = Depends(get_db)):
+    res = await db.execute(select(Poll).options(selectinload(Poll.questions).selectinload(Question.options)).where(Poll.id == poll_id))
+    poll = res.scalar_one_or_none()
+    if not poll:
+        raise HTTPException(404, "Опрос не найден")
+
+    output = io.StringIO()
+    output.write('\ufeff') 
+    writer = csv.writer(output, delimiter=';')
+    writer.writerow(['Вопрос', 'Вариант', 'Количество голосов'])
+
+    for q in poll.questions:
+        rows = await db.execute(
+            select(Option.text, func.count(Vote.id))
+            .outerjoin(Vote, Vote.option_id == Option.id)
+            .where(Option.question_id == q.id)
+            .group_by(Option.text)
+        )
+        for opt_text, count in rows.all():
+            writer.writerow([q.text, opt_text, count])
+
+    file_content = output.getvalue()
+    token = os.getenv("YANDEX_DISK_TOKEN")
+    
+    if not token:
+        raise HTTPException(500, "Токен Яндекс.Диска не настроен")
+
+    try:
+        client = yadisk.Client(token=token)
+        with client:
+            if not client.check_token():
+                raise Exception("Неверный токен Яндекс.Диска")
+            
+            file_name = f"poll_{poll.id}_results.csv"
+            remote_path = f"/{file_name}"
+            
+            f = io.BytesIO(file_content.encode('utf-8'))
+            client.upload(f, remote_path, overwrite=True)
+            
+            client.publish(remote_path)
+            link = client.get_public_link(remote_path)
+            
+            return RedirectResponse(f"/polls/{poll_id}/results?yandex_link={link.get('href', '')}", status_code=303)
+    except Exception as e:
+        raise HTTPException(500, f"Ошибка экспорта: {e}")
 
 @app.get("/polls/{poll_id}/edit", response_class=HTMLResponse)
 async def edit_poll_form(poll_id: int, session: str | None = Cookie(default=None), db: AsyncSession = Depends(get_db)):
@@ -384,7 +437,6 @@ async def edit_poll(poll_id: int, title: str = Form(...), description: str = For
     await db.execute(delete(Question).where(Question.poll_id == poll.id)); await db.flush()
     for q in q_data:
         if not q.get("text", "").strip(): continue
-        # ИСПРАВЛЕНИЕ: Берем тип из JSON при редактировании
         question = Question(poll_id=poll.id, text=q["text"].strip(), question_type=q.get("type", "single"))
         db.add(question); await db.flush()
         correct_idx = q.get("correct", -1)
