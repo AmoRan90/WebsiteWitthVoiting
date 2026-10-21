@@ -403,10 +403,14 @@ async def export_yandex(poll_id: int, db: AsyncSession = Depends(get_db)):
             f = io.BytesIO(file_content.encode('utf-8'))
             client.upload(f, remote_path, overwrite=True)
             
-            client.publish(remote_path)
-            link = client.get_public_link(remote_path)
+            # ИСПРАВЛЕНИЕ: Используем publish и достаем public_url
+            public_info = client.publish(remote_path)
+            link = getattr(public_info, 'public_url', None)
             
-            return RedirectResponse(f"/polls/{poll_id}/results?yandex_link={link.get('href', '')}", status_code=303)
+            if not link:
+                return RedirectResponse(f"/polls/{poll_id}/results", status_code=303)
+            
+            return RedirectResponse(f"/polls/{poll_id}/results?yandex_link={link}", status_code=303)
     except Exception as e:
         raise HTTPException(500, f"Ошибка экспорта: {e}")
 
